@@ -199,6 +199,10 @@ namespace NikNet
 		}
 	};
 
+	//TODO:
+	//1. Make UDP work
+	//2. Do everything as well for the client and it's finally DONE!!!!!
+
 	//Observations:
 	//You must first send and then recv on both sides, if you recv first it will block(that's how your arhitecture will be *shrugs*)
 
@@ -235,6 +239,16 @@ namespace NikNet
 		{
 			clientAddresses.erase(clientAddresses.cbegin() + GetSockId(s));
 			FD_CLR(s, &clientSet);
+		}
+		template<typename T>int nik_send(SOCKET s, T* buf, int len)
+		{
+			//Send each member variable individually
+			//nik_send(s, buf.member_variable1, len);
+			//nik_send(s, buf.member_variable2, len);
+			//nik_send(s, buf.member_variable3, len);
+			//.
+			//.
+			//.
 		}
 		int nik_send(SOCKET s, char* buf, int len)
 		{
