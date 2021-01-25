@@ -363,29 +363,22 @@ namespace NikNet
 				}
 				else
 				{
-					char testByte = 0;
-					if (nik_recv(sock, &testByte, 1) <= 0)
+					char msg[6] = "Hello";
+					const int bytesSend = nik_send(sock, msg, 6);
+					if (bytesSend <= 0)
 					{
-						// Drop the client
-						closesocket(sock);
-						for (unsigned int i = 0; i < clientSet.fd_count; i++)
-						{
-							if (clientSet.fd_array[i] == sock)
-							{
-								clientAddresses.erase(clientAddresses.cbegin() +i);
-								FD_CLR(sock, &clientSet);
-								break;
-							}
-						}
-						OutputDebugStringA("Couldn't properly receive the data so we closed the connection with the client");
+						error = "Couldn't send msg";
+						return;
 					}
-					else
+
+					char buffer[5] = {};
+					const int bytesReceived = nik_recv(sock, buffer, 5);
+					if (bytesReceived <= 0)
 					{
-						//TRAFFIC OF DATA
-						//Use only the functions nik_send and nik_recv to send and recv data
-						//Don't forget about error checking
-						//---
+						error = "Couldn't receive";
+						return;
 					}
+					std::cout.write(buffer, 5);
 				}
 			}
 		}
