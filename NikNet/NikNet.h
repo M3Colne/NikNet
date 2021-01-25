@@ -208,6 +208,27 @@ namespace NikNet
 		std::vector<sockaddr> clientAddresses;
 		std::string error = "No error";
 	private:
+		void Error()
+		{
+			error = std::to_string(WSAGetLastError());
+		}
+		void Error(const char* message)
+		{
+			error = message;
+		}
+
+		void DropClient(SOCKET s)
+		{
+			for (unsigned int i = 0; i < clientAddresses.size(); i++)
+			{
+				if (clientSet.fd_array[i] == s)
+				{
+					clientAddresses.erase(clientAddresses.cbegin() + i);
+					FD_CLR(s, &clientSet);
+					break;
+				}
+			}
+		}
 		int nik_send(SOCKET s, char* buf, int len)
 		{
 			//The first 4 bytes is how much to tell how much we are sending
@@ -337,12 +358,12 @@ namespace NikNet
 				{
 					sockaddr clientAddress;
 					ZeroMemory(&clientAddress, sizeof(clientAddress));
-					int clientAddressSize = 0;
+					int clientAddressSize = sizeof(clientAddress);
 					const SOCKET client = accept(serverSocket, &clientAddress, &clientAddressSize);
 
 					if (client == INVALID_SOCKET)
 					{
-						error = "An error occured while accepting the client";
+						Error();
 						return;
 					}
 					FD_SET(client, &clientSet);
@@ -350,10 +371,8 @@ namespace NikNet
 
 					//Writting a message that a client has connected
 					char ip[INET_ADDRSTRLEN] = {};
-					inet_ntop(AF_INET, &clientAddress, ip, INET_ADDRSTRLEN);
 					std::string msg = "A new client connected with the ip of ";
-					msg += ip;
-					OutputDebugStringA(msg.c_str());
+					OutputDebugStringA((msg + inet_ntop(AF_INET, &clientAddress, ip, INET_ADDRSTRLEN)).c_str());
 
 					//OTHER BEHAVIOUR YOU WANT TO GIVE WHEN THE SERVER ACCEPTS A NEW CLIENT GOES HERE
 					//Use only the functions nik_send and nik_recv to send and recv data
@@ -365,17 +384,17 @@ namespace NikNet
 				{
 					char msg[6] = "Hello";
 					const int bytesSend = nik_send(sock, msg, 6);
-					if (bytesSend <= 0)
+					if (bytesSend < 0)
 					{
-						error = "Couldn't send msg";
+						DropClient(sock);
 						return;
 					}
 
 					char buffer[5] = {};
 					const int bytesReceived = nik_recv(sock, buffer, 5);
-					if (bytesReceived <= 0)
+					if (bytesReceived < 0)
 					{
-						error = "Couldn't receive";
+						Error("Couldn't receive");
 						return;
 					}
 					std::cout.write(buffer, 5);
@@ -397,12 +416,12 @@ namespace NikNet
 		{
 			//Initialize the timeVal
 			ZeroMemory(&timeVal, sizeof(timeVal));
-			timeVal.tv_usec = 500;
+			timeVal.tv_usec = 500000;
 
 			WSADATA wsData;
 			if (WSAStartup(MAKEWORD(2, 2), &wsData))
 			{
-				error = std::to_string(WSAGetLastError());
+				Error();
 				return;
 			}
 			addrinfo* address;
@@ -410,44 +429,33 @@ namespace NikNet
 			ZeroMemory(&hint, sizeof(hint));
 			hint.ai_family = AF_UNSPEC;
 			hint.ai_socktype = UDP0_TCP1 == true ? SOCK_STREAM : SOCK_DGRAM;
-			hint.ai_flags = AI_PASSIVE;
-			if (getaddrinfo(NULL, std::to_string(port).c_str(), &hint, &address))
+			if (getaddrinfo("127.0.0.1", std::to_string(port).c_str(), &hint, &address))
 			{
-				error = std::to_string(WSAGetLastError());
+				Error();
 				return;
 			}
 
 			serverSocket = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
 			if (serverSocket == INVALID_SOCKET)
 			{
-				error = std::to_string(WSAGetLastError());
+				Error();
 				return;
 			}
 
-			if (UDP0_TCP1)
-			{
-				if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
-				{
-					error = std::to_string(WSAGetLastError());
-					return;
-				}
-			}
+			if (UDP0_TCP1 && bind(serverSocket, address->ai_addr, address->ai_addrlen))
 
 			//Set the serversocket to be non-blocking
 			//setsockopt
 
-			u_long myLong = 2048;
-			ioctlsocket(serverSocket, 4, &myLong);
+			//u_long myLong = 2048;
+			//ioctlsocket(serverSocket, 4, &myLong);
 
 			freeaddrinfo(address);
 
-			if (UDP0_TCP1)
+			if (UDP0_TCP1 && listen(serverSocket, SOMAXCONN) == -1)
 			{
-				if (listen(serverSocket, SOMAXCONN) == -1)
-				{
-					error = std::to_string(WSAGetLastError());
-					return;
-				}
+				Error();
+				return;
 			}
 
 			FD_ZERO(&clientSet);
