@@ -12,6 +12,8 @@ int main()
         myServer.Running();
     }
 
+    cout << myServer.GetErr();
+
     cin.get();
     return 0;
 }
