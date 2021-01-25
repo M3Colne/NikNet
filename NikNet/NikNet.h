@@ -199,6 +199,9 @@ namespace NikNet
 		}
 	};
 
+	//Observations:
+	//You must first send and then recv on both sides, if you recv first it will block(that's how your arhitecture will be *shrugs*)
+
 	class Server
 	{
 	private:
@@ -217,17 +220,21 @@ namespace NikNet
 			error = message;
 		}
 
-		void DropClient(SOCKET s)
+		int GetSockId(SOCKET s)
 		{
 			for (unsigned int i = 0; i < clientAddresses.size(); i++)
 			{
 				if (clientSet.fd_array[i] == s)
 				{
-					clientAddresses.erase(clientAddresses.cbegin() + i);
-					FD_CLR(s, &clientSet);
-					break;
+					return i;
 				}
 			}
+			return -1;
+		}
+		void DropClient(SOCKET s)
+		{
+			clientAddresses.erase(clientAddresses.cbegin() + GetSockId(s));
+			FD_CLR(s, &clientSet);
 		}
 		int nik_send(SOCKET s, char* buf, int len)
 		{
@@ -311,12 +318,12 @@ namespace NikNet
 
 			return len;
 		}
-		int nik_recvfrom(SOCKET s, char* buf, int len, sockaddr* from, int *fromlen)
+		int nik_recvfrom(SOCKET s, char* buf, int len, sockaddr* from, int fromlen)
 		{
 			//Receive the number of how many bytes we need to receive
 			int bytesToReceive = 0;
 			{
-				const int bytesReceived = recvfrom(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0, from, fromlen);
+				const int bytesReceived = recvfrom(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0, from, &fromlen);
 				if (bytesReceived <= 0)
 				{
 					return bytesReceived;
@@ -328,7 +335,7 @@ namespace NikNet
 			int n;
 
 			while (total < bytesToReceive) {
-				n = recvfrom(s, buf + total, bytesleft, 0, from, fromlen);
+				n = recvfrom(s, buf + total, bytesleft, 0, from, &fromlen);
 				if (n <= 0)
 				{
 					return n;
@@ -383,21 +390,22 @@ namespace NikNet
 				else
 				{
 					char msg[6] = "Hello";
-					const int bytesSend = nik_send(sock, msg, 6);
+					const int i = GetSockId(sock);
+					const int bytesSend = nik_sendto(sock, msg, 6, &clientAddresses[i], sizeof(clientAddresses[i]));
 					if (bytesSend < 0)
 					{
 						DropClient(sock);
 						return;
 					}
 
-					char buffer[5] = {};
-					const int bytesReceived = nik_recv(sock, buffer, 5);
+					char buffer[3] = {};
+					const int bytesReceived = nik_recvfrom(sock, buffer, 3, &clientAddresses[i], sizeof(clientAddresses[i]));
 					if (bytesReceived < 0)
 					{
 						Error("Couldn't receive");
 						return;
 					}
-					std::cout.write(buffer, 5);
+					std::cout.write(buffer, 3);
 				}
 			}
 		}
@@ -416,7 +424,7 @@ namespace NikNet
 		{
 			//Initialize the timeVal
 			ZeroMemory(&timeVal, sizeof(timeVal));
-			timeVal.tv_usec = 500000;
+			timeVal.tv_usec = 5000;
 
 			WSADATA wsData;
 			if (WSAStartup(MAKEWORD(2, 2), &wsData))
@@ -442,20 +450,24 @@ namespace NikNet
 				return;
 			}
 
-			if (UDP0_TCP1 && bind(serverSocket, address->ai_addr, address->ai_addrlen))
-
-			//Set the serversocket to be non-blocking
-			//setsockopt
-
-			//u_long myLong = 2048;
-			//ioctlsocket(serverSocket, 4, &myLong);
+			if (UDP0_TCP1)
+			{
+				if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
+				{
+					Error();
+					return;
+				}
+			}
 
 			freeaddrinfo(address);
 
-			if (UDP0_TCP1 && listen(serverSocket, SOMAXCONN) == -1)
+			if (UDP0_TCP1)
 			{
-				Error();
-				return;
+				if (listen(serverSocket, SOMAXCONN) == -1)
+				{
+					Error();
+					return;
+				}
 			}
 
 			FD_ZERO(&clientSet);
