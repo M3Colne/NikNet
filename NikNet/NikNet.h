@@ -13,6 +13,7 @@ namespace NikNet
 	{
 	private:
 		SOCKET serverSocket = 0;
+		sockaddr serverAddress;
 		std::string error = "No error";
 	private:
 		void Error()
@@ -39,6 +40,26 @@ namespace NikNet
 			//bytesSend = nik_send(s, buf.member_variable2,
 			//sizeof(buf.member_variable3));
 			//if(bytesSend <= 0){return bytesSend;}
+			//.
+			//.
+			//.
+			return 0;
+		}
+		template<typename T>int nik_recvStruct(SOCKET s, T* buf, int len)
+		{
+			//Receive each member variable individually
+			//Don't forget to use ntohs, ntohl and if you want to receive floats you can use the my functions
+
+			int bytesReceive = 0;
+			//bytesRecv = nik_recv(s, buf.member_variable1,
+			//sizeof(buf.member_variable1)); 
+			//if(bytesRecv <= 0){return bytesRecv;}
+			//bytesRecv = nik_recv(s, buf.member_variable2, 
+			//sizeof(buf.member_variable2));
+			//if(bytesRecv <= 0){return bytesRecv;}
+			//bytesRecv = nik_recv(s, buf.member_variable2,
+			//sizeof(buf.member_variable3));
+			//if(bytesRecv <= 0){return bytesRecv;}
 			//.
 			//.
 			//.
@@ -161,6 +182,11 @@ namespace NikNet
 		}
 		void Running(int number)
 		{
+			//README:
+			//You must first send and then recv on the client sides, if you recv first the server will still wait for you send a message
+			//but you can't because you got blocked from the recv (that's how your arhitecture will be *shrugs*)
+			//Only use nik_send/nik_sendto/nik_sendStruct and nik_recv/nik_recvfrom/nik_recvStruct
+
 			char msg[3] = {};
 			msg[0] = number;
 			msg[1] = ' ';
@@ -200,6 +226,8 @@ namespace NikNet
 				return;
 			}
 
+			this->serverAddress = *peerAddress->ai_addr;
+
 			serverSocket = socket(peerAddress->ai_family, peerAddress->ai_socktype, peerAddress->ai_protocol);
 			if (serverSocket == INVALID_SOCKET)
 			{
@@ -229,10 +257,6 @@ namespace NikNet
 			}
 		}
 	};
-
-	//Observations:
-	//You must first send and then recv on the client sides, if you recv first the server will still wait for you send a message
-	//but you can't because you got blocked from the recv (that's how your arhitecture will be *shrugs*)
 
 	class Server
 	{
@@ -283,6 +307,26 @@ namespace NikNet
 			//bytesSend = nik_send(s, buf.member_variable2,
 			//sizeof(buf.member_variable3));
 			//if(bytesSend <= 0){return bytesSend;}
+			//.
+			//.
+			//.
+			return 0;
+		}
+		template<typename T>int nik_recvStruct(SOCKET s, T* buf, int len)
+		{
+			//Receive each member variable individually
+			//Don't forget to use ntohs, ntohl and if you want to receive floats you can use the my functions
+
+			int bytesReceive = 0;
+			//bytesRecv = nik_recv(s, buf.member_variable1,
+			//sizeof(buf.member_variable1)); 
+			//if(bytesRecv <= 0){return bytesRecv;}
+			//bytesRecv = nik_recv(s, buf.member_variable2, 
+			//sizeof(buf.member_variable2));
+			//if(bytesRecv <= 0){return bytesRecv;}
+			//bytesRecv = nik_recv(s, buf.member_variable2,
+			//sizeof(buf.member_variable3));
+			//if(bytesRecv <= 0){return bytesRecv;}
 			//.
 			//.
 			//.
@@ -463,12 +507,6 @@ namespace NikNet
 					std::cout.write(buffer, 3);
 				}
 			}
-
-			//OTHER BEHAVIOUR YOU WANT TO GIVE WHEN THE SERVER ACCEPTS A NEW CLIENT GOES HERE
-			//Use only the functions nik_send and nik_recv to send and recv data
-			//Don't forget about error checking
-			//For example: Send to all the clients the message that someone connected
-			//---
 		}
 		int GetNClients() const
 		{
