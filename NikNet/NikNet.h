@@ -193,7 +193,7 @@ namespace NikNet
 			msg[0] = number;
 			msg[1] = ' ';
 			msg[2] = '\0';
-			const int bytesSend = nik_send(serverSocket, msg, 3);
+			const int bytesSend = nik_sendto(serverSocket, msg, 3, &serverAddress, sizeof(sockaddr));
 			if (bytesSend <= 0)
 			{
 				error = "Couldn't send msg";
@@ -201,7 +201,7 @@ namespace NikNet
 			}
 
 			char buffer[6] = {};
-			const int bytesReceived = nik_recv(serverSocket, buffer, 6);
+			const int bytesReceived = nik_recvfrom(serverSocket, buffer, 6, &serverAddress, sizeof(sockaddr));
 			if (bytesReceived <= 0)
 			{
 				error = "Couldn't receive";
@@ -237,15 +237,64 @@ namespace NikNet
 				return;
 			}
 
-			if (connect(serverSocket, peerAddress->ai_addr, peerAddress->ai_addrlen))
+			if (bind(serverSocket, peerAddress->ai_addr, peerAddress->ai_addrlen))
 			{
-				error = std::to_string(WSAGetLastError());
+				Error();
 				return;
 			}
 
-			OutputDebugStringA("Succesfully connected to the server!");
+			if (UDP0_TCPP1)
+			{
+				if (connect(serverSocket, peerAddress->ai_addr, peerAddress->ai_addrlen))
+				{
+					error = std::to_string(WSAGetLastError());
+					return;
+				}
+			}
+
+			//This  is in the case of UDP
+			//We must send this client's socket in network byte order
+			if (!UDP0_TCPP1)
+			{
+				addrinfo* myAddress = nullptr;
+				addrinfo hint;
+				ZeroMemory(&hint, sizeof(hint));
+				hint.ai_family = AF_UNSPEC;
+				hint.ai_socktype = UDP0_TCPP1 == true ? SOCK_STREAM : SOCK_DGRAM;
+				hint.ai_flags = AI_PASSIVE;
+				if (getaddrinfo(NULL, std::to_string(port).c_str(), &hint, &myAddress))
+				{
+					Error();
+					return;
+				}
+
+				const SOCKET mySocket = socket(myAddress->ai_family, myAddress->ai_socktype, myAddress->ai_protocol);
+				if (mySocket == INVALID_SOCKET)
+				{
+					Error();
+					return;
+				}
+
+				if (bind(mySocket, myAddress->ai_addr, myAddress->ai_addrlen))
+				{
+					Error();
+					return;
+				}
+
+				const int networkByteOrderSocket = htons(mySocket);
+				if (sendto(serverSocket, reinterpret_cast<const char*>(&networkByteOrderSocket), sizeof(int), 0,
+					peerAddress->ai_addr, peerAddress->ai_addrlen) <= 0)
+				{
+					Error();
+					return;
+				}
+
+				freeaddrinfo(myAddress);
+			}
 
 			freeaddrinfo(peerAddress);
+
+			OutputDebugStringA("Succesfully connected to the server!");
 		}
 		Client(const Client& other) = delete;
 		Client operator=(const Client& other) = delete;
