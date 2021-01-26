@@ -15,6 +15,35 @@ namespace NikNet
 		SOCKET serverSocket = 0;
 		std::string error = "No error";
 	private:
+		void Error()
+		{
+			error = std::to_string(WSAGetLastError());
+		}
+		void Error(const char* message)
+		{
+			error = message;
+		}
+
+		template<typename T>int nik_sendStruct(SOCKET s, T* buf, int len)
+		{
+			//Send each member variable individually
+			//Don't forget to use htons, ntohs, htonl, ntohl and if you want to send floats you can use the my functions
+
+			int bytesSend = 0;
+			//bytesSend = nik_send(s, buf.member_variable1,
+			//sizeof(buf.member_variable1)); 
+			//if(bytesSend <= 0){return bytesSend;}
+			//bytesSend = nik_send(s, buf.member_variable2, 
+			//sizeof(buf.member_variable2));
+			//if(bytesSend <= 0){return bytesSend;}
+			//bytesSend = nik_send(s, buf.member_variable2,
+			//sizeof(buf.member_variable3));
+			//if(bytesSend <= 0){return bytesSend;}
+			//.
+			//.
+			//.
+			return 0;
+		}
 		int nik_send(SOCKET s, char* buf, int len)
 		{
 			//The first 4 bytes is how much to tell how much we are sending
@@ -40,7 +69,7 @@ namespace NikNet
 				bytesleft -= n;
 			}
 
-			return len;
+			return total;
 		}
 		int nik_recv(SOCKET s, char* buf, int len)
 		{
@@ -68,7 +97,7 @@ namespace NikNet
 				bytesleft -= n;
 			}
 
-			return len;
+			return total;
 		}
 		int nik_sendto(SOCKET s, char* buf, int len, sockaddr* to, int tolen)
 		{
@@ -97,12 +126,12 @@ namespace NikNet
 
 			return len;
 		}
-		int nik_recvfrom(SOCKET s, char* buf, int len, sockaddr* from, int* fromlen)
+		int nik_recvfrom(SOCKET s, char* buf, int len, sockaddr* from, int fromlen)
 		{
 			//Receive the number of how many bytes we need to receive
 			int bytesToReceive = 0;
 			{
-				const int bytesReceived = recvfrom(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0, from, fromlen);
+				const int bytesReceived = recvfrom(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0, from, &fromlen);
 				if (bytesReceived <= 0)
 				{
 					return bytesReceived;
@@ -114,7 +143,7 @@ namespace NikNet
 			int n;
 
 			while (total < bytesToReceive) {
-				n = recvfrom(s, buf + total, bytesleft, 0, from, fromlen);
+				n = recvfrom(s, buf + total, bytesleft, 0, from, &fromlen);
 				if (n <= 0)
 				{
 					return n;
@@ -130,20 +159,27 @@ namespace NikNet
 		{
 			return error;
 		}
-		void Running()
+		void Running(int number)
 		{
-			char testByte = 0;
-			if (nik_send(serverSocket, &testByte, 1) <= 0)
+			char msg[3] = {};
+			msg[0] = number;
+			msg[1] = ' ';
+			msg[2] = '\0';
+			const int bytesSend = nik_send(serverSocket, msg, 3);
+			if (bytesSend <= 0)
 			{
-				error = "Couldn't send the test byte";
+				error = "Couldn't send msg";
 				return;
 			}
-			else
+
+			char buffer[6] = {};
+			const int bytesReceived = nik_recv(serverSocket, buffer, 6);
+			if (bytesReceived <= 0)
 			{
-				//Use only the functions nik_send and nik_recv to send and recv data
-				//Don't forget about error checking
-				//---
+				error = "Couldn't receive";
+				return;
 			}
+			std::cout.write(buffer, 6);
 		}
 
 		Client(const char* ipAddress, unsigned int port, bool UDP0_TCPP1)
@@ -158,7 +194,6 @@ namespace NikNet
 			ZeroMemory(&hint, sizeof(hint));
 			hint.ai_family = AF_UNSPEC;
 			hint.ai_socktype = UDP0_TCPP1 == true ? SOCK_STREAM : SOCK_DGRAM;
-			hint.ai_flags = AI_PASSIVE;
 			if (getaddrinfo(ipAddress, std::to_string(port).c_str(), &hint, &peerAddress))
 			{
 				error = std::to_string(WSAGetLastError());
@@ -172,17 +207,13 @@ namespace NikNet
 				return;
 			}
 
-			if (bind(serverSocket, peerAddress->ai_addr, peerAddress->ai_addrlen))
-			{
-				error = std::to_string(WSAGetLastError());
-				return;
-			}
-
 			if (connect(serverSocket, peerAddress->ai_addr, peerAddress->ai_addrlen))
 			{
 				error = std::to_string(WSAGetLastError());
 				return;
 			}
+
+			OutputDebugStringA("Succesfully connected to the server!");
 
 			freeaddrinfo(peerAddress);
 		}
