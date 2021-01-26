@@ -224,7 +224,7 @@ namespace NikNet
 		{
 			for (unsigned int i = 0; i < clientAddresses.size(); i++)
 			{
-				if (clientSet.fd_array[i] == s)
+				if (clientSet.fd_array[i+1] == s) //+1 because we skip the serverSocket
 				{
 					return i;
 				}
@@ -239,29 +239,39 @@ namespace NikNet
 		template<typename T>int nik_send(SOCKET s, T* buf, int len)
 		{
 			//Send each member variable individually
-			//nik_send(s, buf.member_variable1, len);
-			//nik_send(s, buf.member_variable2, len);
-			//nik_send(s, buf.member_variable3, len);
+			int bytesSend = 0;
+			//Use this variable to test your nik_sends for errors
+			//bytesSend = nik_send(s, buf.member_variable1,
+			//sizeof(buf.member_variable1)); 
+			//if(bytesSend <= 0){return bytesSend;}
+			//bytesSend = nik_send(s, buf.member_variable2, 
+			//sizeof(buf.member_variable2));
+			//if(bytesSend <= 0){return bytesSend;}
+			//bytesSend = nik_send(s, buf.member_variable2,
+			//sizeof(buf.member_variable3));
+			//if(bytesSend <= 0){return bytesSend;}
 			//.
 			//.
 			//.
+			return 0;
 		}
 		int nik_send(SOCKET s, char* buf, int len)
 		{
-			//The first 4 bytes is how much to tell how much we are sending
+			//First we are sending how many bytes we are about to send
 			{
-				const int bytesSent = send(s, reinterpret_cast<char*>(&len), sizeof(int), 0);
-				if (bytesSent <= 0)
+				const int a = send(s, reinterpret_cast<char*>(&len), sizeof(int), 0);
+				if (a <= 0)
 				{
-					return bytesSent;
+					return a;
 				}
 			}
 
-			int total = 0;        // how many bytes we've sent
+			int total = 0;        // how many bytes we've sent so far
 			int bytesleft = len; // how many we have left to send
 			int n;
 
-			while (total < len) {
+			while (total < len)
+			{
 				n = send(s, buf + total, bytesleft, 0);
 				if (n <= 0)
 				{
@@ -271,21 +281,21 @@ namespace NikNet
 				bytesleft -= n;
 			}
 
-			return len;
+			return total;
 		}
 		int nik_recv(SOCKET s, char* buf, int len)
 		{
 			//Receive the number of how many bytes we need to receive
 			int bytesToReceive = 0;
 			{
-				const int bytesReceived = recv(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0);
-				if (bytesReceived <= 0)
+				const int a = recv(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0);
+				if (a <= 0)
 				{
-					return bytesReceived;
+					return a;
 				}
 			}
 
-			int total = 0;				    // how many bytes we've received
+			int total = 0;				    // how many bytes we've received so far
 			int bytesleft = bytesToReceive; // how many we have left to receive
 			int n;
 
@@ -299,63 +309,63 @@ namespace NikNet
 				bytesleft -= n;
 			}
 
-			return len;
+			return total;
 		}
-		int nik_sendto(SOCKET s, char* buf, int len, sockaddr* to, int tolen)
-		{
-			//The first 4 bytes is how much to tell how much we are sending
-			{
-				const int bytesSent = sendto(s, reinterpret_cast<char*>(&len), sizeof(int), 0, to, tolen);
-				if (bytesSent <= 0)
-				{
-					return bytesSent;
-				}
-			}
+		//int nik_sendto(SOCKET s, char* buf, int len, sockaddr* to, int tolen)
+		//{
+		//	//The first 4 bytes is how much to tell how much we are sending
+		//	{
+		//		const int bytesSent = sendto(s, reinterpret_cast<char*>(&len), sizeof(int), 0, to, tolen);
+		//		if (bytesSent <= 0)
+		//		{
+		//			return bytesSent;
+		//		}
+		//	}
 
-			int total = 0;        // how many bytes we've sent
-			int bytesleft = len; // how many we have left to send
-			int n;
+		//	int total = 0;        // how many bytes we've sent
+		//	int bytesleft = len; // how many we have left to send
+		//	int n;
 
-			while (total < len) {
-				n = sendto(s, buf + total, bytesleft, 0, to, tolen);
-				if (n <= 0)
-				{
-					return n;
-				}
-				total += n;
-				bytesleft -= n;
-			}
+		//	while (total < len) {
+		//		n = sendto(s, buf + total, bytesleft, 0, to, tolen);
+		//		if (n <= 0)
+		//		{
+		//			return n;
+		//		}
+		//		total += n;
+		//		bytesleft -= n;
+		//	}
 
-			return len;
-		}
-		int nik_recvfrom(SOCKET s, char* buf, int len, sockaddr* from, int fromlen)
-		{
-			//Receive the number of how many bytes we need to receive
-			int bytesToReceive = 0;
-			{
-				const int bytesReceived = recvfrom(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0, from, &fromlen);
-				if (bytesReceived <= 0)
-				{
-					return bytesReceived;
-				}
-			}
+		//	return len;
+		//}
+		//int nik_recvfrom(SOCKET s, char* buf, int len, sockaddr* from, int fromlen)
+		//{
+		//	//Receive the number of how many bytes we need to receive
+		//	int bytesToReceive = 0;
+		//	{
+		//		const int bytesReceived = recvfrom(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0, from, &fromlen);
+		//		if (bytesReceived <= 0)
+		//		{
+		//			return bytesReceived;
+		//		}
+		//	}
 
-			int total = 0;				    // how many bytes we've received
-			int bytesleft = bytesToReceive; // how many we have left to receive
-			int n;
+		//	int total = 0;				    // how many bytes we've received
+		//	int bytesleft = bytesToReceive; // how many we have left to receive
+		//	int n;
 
-			while (total < bytesToReceive) {
-				n = recvfrom(s, buf + total, bytesleft, 0, from, &fromlen);
-				if (n <= 0)
-				{
-					return n;
-				}
-				total += n;
-				bytesleft -= n;
-			}
+		//	while (total < bytesToReceive) {
+		//		n = recvfrom(s, buf + total, bytesleft, 0, from, &fromlen);
+		//		if (n <= 0)
+		//		{
+		//			return n;
+		//		}
+		//		total += n;
+		//		bytesleft -= n;
+		//	}
 
-			return len;
-		}
+		//	return len;
+		//}
 	public:
 		std::string GetErr() const
 		{
@@ -405,20 +415,16 @@ namespace NikNet
 				}
 				else
 				{
-					char msg[6] = "Hello";
-					const int i = GetSockId(sock);
-					const int bytesSend = nik_send(sock, msg, 6);
-					if (bytesSend < 0)
+					if (nik_send(sock, "Hello", 6) < 0)
 					{
 						DropClient(sock);
 						return;
 					}
 
 					char buffer[3] = {};
-					const int bytesReceived = nik_recv(sock, buffer, 3);
-					if (bytesReceived < 0)
+					if (nik_recv(sock, buffer, 3) < 0)
 					{
-						Error("Couldn't receive");
+						DropClient(sock);
 						return;
 					}
 					std::cout.write(buffer, 3);
@@ -479,7 +485,7 @@ namespace NikNet
 		}
 		int GetN_Client() const
 		{
-			return clientSet.fd_count;
+			return clientAddresses.size();
 		}
 		std::string GetClientAddress(int whichOne)
 		{
