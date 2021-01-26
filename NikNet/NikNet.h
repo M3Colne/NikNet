@@ -199,10 +199,6 @@ namespace NikNet
 		}
 	};
 
-	//TODO:
-	//1. Make UDP work
-	//2. Do everything as well for the client and it's finally DONE!!!!!
-
 	//Observations:
 	//You must first send and then recv on both sides, if you recv first it will block(that's how your arhitecture will be *shrugs*)
 
@@ -371,6 +367,12 @@ namespace NikNet
 			fd_set copy = clientSet;
 			const unsigned int socketCount = select(0, &copy, nullptr, nullptr, &timeVal);
 
+			if (socketCount == SOCKET_ERROR)
+			{
+				Error();
+				return;
+			}
+
 			//For each socket that we read from
 			for (unsigned int i = 0; i < socketCount; i++)
 			{
@@ -405,7 +407,7 @@ namespace NikNet
 				{
 					char msg[6] = "Hello";
 					const int i = GetSockId(sock);
-					const int bytesSend = nik_sendto(sock, msg, 6, &clientAddresses[i], sizeof(clientAddresses[i]));
+					const int bytesSend = nik_send(sock, msg, 6);
 					if (bytesSend < 0)
 					{
 						DropClient(sock);
@@ -413,7 +415,7 @@ namespace NikNet
 					}
 
 					char buffer[3] = {};
-					const int bytesReceived = nik_recvfrom(sock, buffer, 3, &clientAddresses[i], sizeof(clientAddresses[i]));
+					const int bytesReceived = nik_recv(sock, buffer, 3);
 					if (bytesReceived < 0)
 					{
 						Error("Couldn't receive");
@@ -422,6 +424,58 @@ namespace NikNet
 					std::cout.write(buffer, 3);
 				}
 			}
+
+			//for (unsigned int i = 0; i < rSocketCount; i++)
+			//{
+			//	const SOCKET sock = rReady.fd_array[i];
+			//	if (sock == serverSocket)
+			//	{
+			//		sockaddr clientAddress;
+			//		ZeroMemory(&clientAddress, sizeof(clientAddress));
+			//		int clientAddressSize = sizeof(clientAddress);
+			//		const SOCKET client = accept(serverSocket, &clientAddress, &clientAddressSize);
+
+			//		if (client == INVALID_SOCKET)
+			//		{
+			//			Error();
+			//			return;
+			//		}
+			//		FD_SET(client, &clientSet);
+			//		clientAddresses.push_back(clientAddress);
+
+			//		//Writting a message that a client has connected
+			//		char ip[INET_ADDRSTRLEN] = {};
+			//		std::string msg = "A new client connected with the ip of ";
+			//		OutputDebugStringA((msg + inet_ntop(AF_INET, &clientAddress, ip, INET_ADDRSTRLEN)).c_str());
+
+			//		//OTHER BEHAVIOUR YOU WANT TO GIVE WHEN THE SERVER ACCEPTS A NEW CLIENT GOES HERE
+			//		//Use only the functions nik_send and nik_recv to send and recv data
+			//		//Don't forget about error checking
+			//		//For example: Send to all the clients the message that someone connected
+			//		//---
+			//	}
+			//	else
+			//	{
+			//		//Reading
+			//		char buffer[3] = {};
+			//		const int bytesReceived = nik_recvfrom(sock, buffer, 3, &clientAddresses[i], sizeof(clientAddresses[i]));
+			//		if (bytesReceived < 0)
+			//		{
+			//			Error("Couldn't receive");
+			//			return;
+			//		}
+			//		std::cout.write(buffer, 3);
+			//	}
+			//}
+
+			/*char msg[6] = "Hello";
+					const int i = GetSockId(sock);
+					const int bytesSend = nik_sendto(sock, msg, 6, &clientAddresses[i], sizeof(clientAddresses[i]));
+					if (bytesSend < 0)
+					{
+						DropClient(sock);
+						return;
+					}*/
 		}
 		int GetN_Client() const
 		{
