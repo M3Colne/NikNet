@@ -267,6 +267,7 @@ namespace NikNet
 		fd_set clientSet;
 		TIMEVAL timeVal;
 		std::vector<sockaddr> clientAddresses;
+		bool UDP0_TCP1 = true;
 		std::string error = "No error";
 	private:
 		void Error()
@@ -391,8 +392,10 @@ namespace NikNet
 
 			return total;
 		}
-		int nik_sendto(SOCKET s, char* buf, int len, sockaddr* to, int tolen)
+		int nik_sendto(SOCKET s, char* buf, int len)
 		{
+			const sockaddr* to = &clientAddresses[GetSockId(s)];
+			const int tolen = sizeof(sockaddr);
 			//The first 4 bytes is how much to tell how much we are sending
 			{
 				const int bytesSent = sendto(s, reinterpret_cast<char*>(&len), sizeof(int), 0, to, tolen);
@@ -418,8 +421,10 @@ namespace NikNet
 
 			return len;
 		}
-		int nik_recvfrom(SOCKET s, char* buf, int len, sockaddr* from, int fromlen)
+		int nik_recvfrom(SOCKET s, char* buf, int len)
 		{
+			sockaddr* from = &clientAddresses[GetSockId(s)];
+			int fromlen = sizeof(sockaddr);
 			//Receive the number of how many bytes we need to receive
 			int bytesToReceive = 0;
 			{
@@ -472,7 +477,24 @@ namespace NikNet
 					sockaddr clientAddress;
 					ZeroMemory(&clientAddress, sizeof(clientAddress));
 					int clientAddressSize = sizeof(clientAddress);
-					const SOCKET client = accept(serverSocket, &clientAddress, &clientAddressSize);
+
+					SOCKET client = 0;
+
+					//Case for UDP
+					if (UDP0_TCP1)
+					{
+						client = accept(serverSocket, &clientAddress, &clientAddressSize);
+					}
+					else
+					{
+						if (nik_recvfrom(serverSocket, 
+							reinterpret_cast<char*>(&client), sizeof(client)) <= 0)
+						{
+							Error();
+							return;
+						}
+						client = ntohs(client); //Don't forget to transform to host byte order ;)
+					}
 
 					if (client == INVALID_SOCKET)
 					{
@@ -503,14 +525,14 @@ namespace NikNet
 					//Don't forget to do error checking
 
 					char msg[] = "Hello";
-					if (nik_send(sock, msg, 6) <= 0)
+					if (nik_sendto(sock, msg, 6) <= 0)
 					{
 						DropClient(sock);
 						return;
 					}
 
 					char buffer[3] = {};
-					if (nik_recv(sock, buffer, 3) <= 0)
+					if (nik_recvfrom(sock, buffer, 3) <= 0)
 					{
 						DropClient(sock);
 						return;
@@ -531,6 +553,8 @@ namespace NikNet
 		}
 
 		Server(const char* ipAddress, unsigned int port, bool UDP0_TCP1)
+			:
+			UDP0_TCP1(UDP0_TCP1)
 		{
 			//Initialize the timeVal
 			ZeroMemory(&timeVal, sizeof(timeVal));
