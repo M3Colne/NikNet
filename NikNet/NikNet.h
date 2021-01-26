@@ -200,7 +200,8 @@ namespace NikNet
 	};
 
 	//Observations:
-	//You must first send and then recv on both sides, if you recv first it will block(that's how your arhitecture will be *shrugs*)
+	//You must first send and then recv on the client sides, if you recv first the server will still wait for you send a message
+	//but you can't because you got blocked from the recv (that's how your arhitecture will be *shrugs*)
 
 	class Server
 	{
@@ -236,7 +237,7 @@ namespace NikNet
 			clientAddresses.erase(clientAddresses.cbegin() + GetSockId(s));
 			FD_CLR(s, &clientSet);
 		}
-		template<typename T>int nik_send(SOCKET s, T* buf, int len)
+		template<typename T>int nik_sendStruct(SOCKET s, T* buf, int len)
 		{
 			//Send each member variable individually
 			int bytesSend = 0;
@@ -254,6 +255,33 @@ namespace NikNet
 			//.
 			//.
 			return 0;
+		}
+		int nik_send(SOCKET s, const char* buf, int len)
+		{
+			//The first 4 bytes is how much to tell how much we are sending
+			{
+				const int bytesSent = send(s, reinterpret_cast<char*>(&len), sizeof(int), 0);
+				if (bytesSent <= 0)
+				{
+					return bytesSent;
+				}
+			}
+
+			int total = 0;        // how many bytes we've sent
+			int bytesleft = len; // how many we have left to send
+			int n;
+
+			while (total < len) {
+				n = send(s, buf + total, bytesleft, 0);
+				if (n <= 0)
+				{
+					return n;
+				}
+				total += n;
+				bytesleft -= n;
+			}
+
+			return total;
 		}
 		int nik_send(SOCKET s, char* buf, int len)
 		{
@@ -414,14 +442,14 @@ namespace NikNet
 				}
 				else
 				{
-					if (nik_send(sock, "Hello", 6) < 0)
+					if (nik_send(sock, "Hello", 6) <= 0)
 					{
 						DropClient(sock);
 						return;
 					}
 
 					char buffer[3] = {};
-					if (nik_recv(sock, buffer, 3) < 0)
+					if (nik_recv(sock, buffer, 3) <= 0)
 					{
 						DropClient(sock);
 						return;
@@ -430,57 +458,11 @@ namespace NikNet
 				}
 			}
 
-			//for (unsigned int i = 0; i < rSocketCount; i++)
-			//{
-			//	const SOCKET sock = rReady.fd_array[i];
-			//	if (sock == serverSocket)
-			//	{
-			//		sockaddr clientAddress;
-			//		ZeroMemory(&clientAddress, sizeof(clientAddress));
-			//		int clientAddressSize = sizeof(clientAddress);
-			//		const SOCKET client = accept(serverSocket, &clientAddress, &clientAddressSize);
-
-			//		if (client == INVALID_SOCKET)
-			//		{
-			//			Error();
-			//			return;
-			//		}
-			//		FD_SET(client, &clientSet);
-			//		clientAddresses.push_back(clientAddress);
-
-			//		//Writting a message that a client has connected
-			//		char ip[INET_ADDRSTRLEN] = {};
-			//		std::string msg = "A new client connected with the ip of ";
-			//		OutputDebugStringA((msg + inet_ntop(AF_INET, &clientAddress, ip, INET_ADDRSTRLEN)).c_str());
-
-			//		//OTHER BEHAVIOUR YOU WANT TO GIVE WHEN THE SERVER ACCEPTS A NEW CLIENT GOES HERE
-			//		//Use only the functions nik_send and nik_recv to send and recv data
-			//		//Don't forget about error checking
-			//		//For example: Send to all the clients the message that someone connected
-			//		//---
-			//	}
-			//	else
-			//	{
-			//		//Reading
-			//		char buffer[3] = {};
-			//		const int bytesReceived = nik_recvfrom(sock, buffer, 3, &clientAddresses[i], sizeof(clientAddresses[i]));
-			//		if (bytesReceived < 0)
-			//		{
-			//			Error("Couldn't receive");
-			//			return;
-			//		}
-			//		std::cout.write(buffer, 3);
-			//	}
-			//}
-
-			/*char msg[6] = "Hello";
-					const int i = GetSockId(sock);
-					const int bytesSend = nik_sendto(sock, msg, 6, &clientAddresses[i], sizeof(clientAddresses[i]));
-					if (bytesSend < 0)
-					{
-						DropClient(sock);
-						return;
-					}*/
+			//OTHER BEHAVIOUR YOU WANT TO GIVE WHEN THE SERVER ACCEPTS A NEW CLIENT GOES HERE
+			//Use only the functions nik_send and nik_recv to send and recv data
+			//Don't forget about error checking
+			//For example: Send to all the clients the message that someone connected
+			//---
 		}
 		int GetN_Client() const
 		{
