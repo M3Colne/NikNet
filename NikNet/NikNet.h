@@ -240,8 +240,9 @@ namespace NikNet
 		template<typename T>int nik_sendStruct(SOCKET s, T* buf, int len)
 		{
 			//Send each member variable individually
+			//Don't forget to use htons, ntohs, htonl, ntohl and if you want to send floats you can use the my functions
+
 			int bytesSend = 0;
-			//Use this variable to test your nik_sends for errors
 			//bytesSend = nik_send(s, buf.member_variable1,
 			//sizeof(buf.member_variable1)); 
 			//if(bytesSend <= 0){return bytesSend;}
@@ -438,7 +439,7 @@ namespace NikNet
 			//For example: Send to all the clients the message that someone connected
 			//---
 		}
-Chang		int GetNClients() const
+		int GetNClients() const
 		{
 			return clientAddresses.size();
 		}
@@ -449,11 +450,11 @@ Chang		int GetNClients() const
 			return ip;
 		}
 
-		Server(unsigned int port, bool UDP0_TCP1)
+		Server(const char* ipAddress, unsigned int port, bool UDP0_TCP1)
 		{
 			//Initialize the timeVal
 			ZeroMemory(&timeVal, sizeof(timeVal));
-			timeVal.tv_usec = 5000;
+			timeVal.tv_usec = 10;
 
 			WSADATA wsData;
 			if (WSAStartup(MAKEWORD(2, 2), &wsData))
@@ -466,7 +467,7 @@ Chang		int GetNClients() const
 			ZeroMemory(&hint, sizeof(hint));
 			hint.ai_family = AF_UNSPEC;
 			hint.ai_socktype = UDP0_TCP1 == true ? SOCK_STREAM : SOCK_DGRAM;
-			if (getaddrinfo("127.0.0.1", std::to_string(port).c_str(), &hint, &address))
+			if (getaddrinfo(ipAddress, std::to_string(port).c_str(), &hint, &address))
 			{
 				Error();
 				return;

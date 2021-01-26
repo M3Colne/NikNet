@@ -5,7 +5,7 @@ using namespace std;
 
 int main()
 {
-    NikNet::Server myServer(54000, true);
+    NikNet::Server myServer("192.168.0.17", 54000, true);
 
     cout << myServer.GetErr();
     
