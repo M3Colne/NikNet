@@ -496,10 +496,7 @@ namespace NikNet
 				else
 				{
 					//README:
-					//If you make a TCP server use nik_send and nik_recv but if you make a UDP server use nik_sendto and nik_recvfrom
-					//If you want to send a struct you have to use the nik_sendStruct and nik_recvStruct but you have to do them yourself
-					//Go to their declaration and send each member individually with nik_send and then use these two functions whenever you want
-					//Basically use any private function you want to do networking
+					//You can use all of the private functions to do networking
 					//Don't forget to do error checking
 
 					char msg[] = "Hello";
