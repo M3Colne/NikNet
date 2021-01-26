@@ -257,21 +257,20 @@ namespace NikNet
 		}
 		int nik_send(SOCKET s, char* buf, int len)
 		{
-			//First we are sending how many bytes we are about to send
+			//The first 4 bytes is how much to tell how much we are sending
 			{
-				const int a = send(s, reinterpret_cast<char*>(&len), sizeof(int), 0);
-				if (a <= 0)
+				const int bytesSent = send(s, reinterpret_cast<char*>(&len), sizeof(int), 0);
+				if (bytesSent <= 0)
 				{
-					return a;
+					return bytesSent;
 				}
 			}
 
-			int total = 0;        // how many bytes we've sent so far
+			int total = 0;        // how many bytes we've sent
 			int bytesleft = len; // how many we have left to send
 			int n;
 
-			while (total < len)
-			{
+			while (total < len) {
 				n = send(s, buf + total, bytesleft, 0);
 				if (n <= 0)
 				{
@@ -288,14 +287,14 @@ namespace NikNet
 			//Receive the number of how many bytes we need to receive
 			int bytesToReceive = 0;
 			{
-				const int a = recv(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0);
-				if (a <= 0)
+				const int bytesReceived = recv(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0);
+				if (bytesReceived <= 0)
 				{
-					return a;
+					return bytesReceived;
 				}
 			}
 
-			int total = 0;				    // how many bytes we've received so far
+			int total = 0;				    // how many bytes we've received
 			int bytesleft = bytesToReceive; // how many we have left to receive
 			int n;
 
