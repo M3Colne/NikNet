@@ -31,6 +31,7 @@ namespace NikNet
 			//Don't forget to use htons, ntohs, htonl, ntohl and if you want to send floats you can use the my functions
 
 			int bytesSend = 0;
+			//Uncomment this
 			//bytesSend = nik_send(s, buf.member_variable1,
 			//sizeof(buf.member_variable1)); 
 			//if(bytesSend <= 0){return bytesSend;}
@@ -51,6 +52,7 @@ namespace NikNet
 			//Don't forget to use ntohs, ntohl and if you want to receive floats you can use the my functions
 
 			int bytesReceive = 0;
+			//Uncommen this
 			//bytesRecv = nik_recv(s, buf.member_variable1,
 			//sizeof(buf.member_variable1)); 
 			//if(bytesRecv <= 0){return bytesRecv;}
@@ -298,6 +300,7 @@ namespace NikNet
 			//Don't forget to use htons, ntohs, htonl, ntohl and if you want to send floats you can use the my functions
 
 			int bytesSend = 0;
+			//Uncomment this
 			//bytesSend = nik_send(s, buf.member_variable1,
 			//sizeof(buf.member_variable1)); 
 			//if(bytesSend <= 0){return bytesSend;}
@@ -318,6 +321,7 @@ namespace NikNet
 			//Don't forget to use ntohs, ntohl and if you want to receive floats you can use the my functions
 
 			int bytesReceive = 0;
+			//Uncommen this
 			//bytesRecv = nik_recv(s, buf.member_variable1,
 			//sizeof(buf.member_variable1)); 
 			//if(bytesRecv <= 0){return bytesRecv;}
@@ -491,6 +495,10 @@ namespace NikNet
 				}
 				else
 				{
+					//README:
+					//You can use all of the private functions to do networking
+					//Don't forget to do error checking
+
 					char msg[] = "Hello";
 					if (nik_send(sock, msg, 6) <= 0)
 					{
