@@ -560,13 +560,10 @@ namespace NikNet
 				return;
 			}
 
-			if (UDP0_TCP1)
+			if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
 			{
-				if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
-				{
-					Error();
-					return;
-				}
+				Error();
+				return;
 			}
 
 			freeaddrinfo(address);
