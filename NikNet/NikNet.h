@@ -282,7 +282,7 @@ namespace NikNet
 		{
 			for (unsigned int i = 0; i < clientAddresses.size(); i++)
 			{
-				if (clientSet.fd_array[i+1] == s) //+1 because we skip the serverSocket
+				if (clientSet.fd_array[i] == s)
 				{
 					return i;
 				}
@@ -521,7 +521,7 @@ namespace NikNet
 		}
 		int GetNClients() const
 		{
-			return clientAddresses.size();
+			return clientAddresses.size() - 1; //- 1 because we also have the serverSocket in there, which isn't really a client
 		}
 		std::string GetClientAddress(int whichOne)
 		{
@@ -566,11 +566,9 @@ namespace NikNet
 				return;
 			}
 
-			freeaddrinfo(address);
-
 			if (UDP0_TCP1)
 			{
-				if (listen(serverSocket, SOMAXCONN) == -1)
+				if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
 				{
 					Error();
 					return;
@@ -579,6 +577,8 @@ namespace NikNet
 
 			FD_ZERO(&clientSet);
 			FD_SET(serverSocket, &clientSet);
+			clientAddresses.push_back(*address->ai_addr);
+			freeaddrinfo(address);
 		}
 		Server(const Server& other) = delete;
 		Server& operator=(const Server& other) = delete;
