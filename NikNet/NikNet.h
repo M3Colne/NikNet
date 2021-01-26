@@ -438,7 +438,7 @@ namespace NikNet
 			//For example: Send to all the clients the message that someone connected
 			//---
 		}
-		int GetN_Client() const
+Chang		int GetNClients() const
 		{
 			return clientAddresses.size();
 		}
