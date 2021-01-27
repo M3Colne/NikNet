@@ -388,10 +388,7 @@ namespace NikNet
 		Server& operator=(const Server& other) = delete;
 		Server(const Server&& other) = delete;
 		Server& operator=(const Server&& other) = delete;
-		virtual ~Server()
-		{
-			WSACleanup();
-		}
+		virtual ~Server() = 0;
 	};
 
 	class TCP_Server : public Server
@@ -417,13 +414,7 @@ namespace NikNet
 			FD_CLR(s, &clientSet);
 		}
 	public:
-		TCP_Server(const char* ipAddress, unsigned int port)
-			:
-			Server(ipAddress, port)
-		{
-			FD_ZERO(&clientSet);
-			FD_SET(serverSocket, &clientSet);
-		}
+
 		void Running() override
 		{
 			//Multiple client architecture
@@ -497,6 +488,22 @@ namespace NikNet
 					std::cout.write(buffer, 26);
 				}
 			}
+		}
+
+		TCP_Server(const char* ipAddress, unsigned int port)
+			:
+			Server(ipAddress, port)
+		{
+			FD_ZERO(&clientSet);
+			FD_SET(serverSocket, &clientSet);
+		}
+		TCP_Server(const TCP_Server& other) = delete;
+		TCP_Server& operator=(const TCP_Server& other) = delete;
+		TCP_Server(const TCP_Server&& other) = delete;
+		TCP_Server& operator=(const TCP_Server&& other) = delete;
+		~TCP_Server() override
+		{
+			WSACleanup();
 		}
 	};
 }
