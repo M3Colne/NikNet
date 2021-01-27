@@ -639,13 +639,19 @@ namespace NikNet
 				return;
 			}
 
-			if (UDP0_TCP1)
+			if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
 			{
-				if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
-				{
-					Error();
-					return;
-				}
+				Error();
+				return;
+			}
+
+
+			//Make it non-blocking
+			u_long NonBlock = 1;
+			if (ioctlsocket(serverSocket, FIONBIO, &NonBlock) == SOCKET_ERROR)
+			{
+				Error();
+				return;
 			}
 
 			FD_ZERO(&clientSet);
