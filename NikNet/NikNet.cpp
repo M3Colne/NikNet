@@ -12,7 +12,12 @@ int main()
     while (myServer.GetErr() == "No error")
     {
         myServer.Running();
-        //cout << "Finished networking ";
+        for (int i = 0; i < myServer.GetNClients(); i++)
+        {
+            std::string ip = myServer.GetClientAddress(i);
+            std::string msg = "The client # " + std::to_string(i) + " has the ip:" + ip + "\n";
+            OutputDebugStringA(msg.c_str());
+        }
     }
 
     cout << myServer.GetErr();
