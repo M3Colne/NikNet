@@ -211,12 +211,11 @@ namespace NikNet
 
 	class Server
 	{
-	private:
+	protected:
 		SOCKET serverSocket = 0;
-		fd_set clientSet;
 		std::vector<sockaddr> clientAddresses;;
 		std::string error = "No error";
-	private:
+	protected:
 		void Error()
 		{
 			error = std::to_string(WSAGetLastError());
@@ -226,22 +225,6 @@ namespace NikNet
 			error = message;
 		}
 
-		int GetSockId(SOCKET s)
-		{
-			for (unsigned int i = 0; i < clientAddresses.size(); i++)
-			{
-				if (clientSet.fd_array[i] == s)
-				{
-					return i;
-				}
-			}
-			return -1;
-		}
-		void DropClient(SOCKET s)
-		{
-			clientAddresses.erase(clientAddresses.cbegin() + GetSockId(s));
-			FD_CLR(s, &clientSet);
-		}
 		template<typename T>int nik_sendStruct(SOCKET s, T* buf, int len)
 		{
 			//Send each member variable individually
@@ -347,7 +330,101 @@ namespace NikNet
 		{
 			return error;
 		}
-		void Running()
+		virtual void Running() = 0;
+		int GetNClients() const
+		{
+			return clientAddresses.size() - 1; //- 1 because we also have both listeners in there, which aren't really clients
+		}
+		std::string GetClientAddress(int whichOne)
+		{
+			char ip[INET_ADDRSTRLEN] = {};
+			inet_ntop(AF_INET, &clientAddresses.at(whichOne + 1), ip, INET_ADDRSTRLEN); // +1 because we want to skip the server
+			return ip;
+		}
+
+		Server(const char* ipAddress, unsigned int port)
+		{
+			WSADATA wsData;
+			if (WSAStartup(MAKEWORD(2, 2), &wsData))
+			{
+				Error();
+				return;
+			}
+			addrinfo* address;
+			addrinfo hint;
+			ZeroMemory(&hint, sizeof(hint));
+			hint.ai_family = AF_UNSPEC;
+			hint.ai_socktype = SOCK_STREAM;
+			if (getaddrinfo(ipAddress, std::to_string(port).c_str(), &hint, &address))
+			{
+				Error();
+				return;
+			}
+
+			serverSocket = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
+			if (serverSocket == INVALID_SOCKET)
+			{
+				Error();
+				return;
+			}
+
+			if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
+			{
+				Error();
+				return;
+			}
+
+			freeaddrinfo(address);
+
+			if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
+			{
+				Error();
+				return;
+			}
+
+			clientAddresses.push_back(*address->ai_addr);
+		}
+		Server(const Server& other) = delete;
+		Server& operator=(const Server& other) = delete;
+		Server(const Server&& other) = delete;
+		Server& operator=(const Server&& other) = delete;
+		virtual ~Server()
+		{
+			WSACleanup();
+		}
+	};
+
+	class TCP_Server : public Server
+	{
+	private:
+		fd_set clientSet;
+	public:
+	private:
+		int GetSockId(SOCKET s)
+		{
+			for (unsigned int i = 0; i < clientAddresses.size(); i++)
+			{
+				if (clientSet.fd_array[i] == s)
+				{
+					return i;
+				}
+			}
+			return -1;
+		}
+		void DropClient(SOCKET s)
+		{
+			clientAddresses.erase(clientAddresses.cbegin() + GetSockId(s));
+			FD_CLR(s, &clientSet);
+		}
+	public:
+		TCP_Server(const char* ipAddress, unsigned int port)
+			:
+			Server(ipAddress, port)
+		{
+			FD_ZERO(&clientSet);
+			FD_SET(serverSocket, &clientSet);
+		}
+		void Running() override
 		{
 			//Multiple client architecture
 			fd_set copy = clientSet;
@@ -420,68 +497,6 @@ namespace NikNet
 					std::cout.write(buffer, 26);
 				}
 			}
-		}
-		int GetNClients() const
-		{
-			return clientAddresses.size() - 1; //- 1 because we also have both listeners in there, which aren't really clients
-		}
-		std::string GetClientAddress(int whichOne)
-		{
-			char ip[INET_ADDRSTRLEN] = {};
-			inet_ntop(AF_INET, &clientAddresses.at(whichOne + 1), ip, INET_ADDRSTRLEN); // +1 because we want to skip the server
-			return ip;
-		}
-
-		Server(const char* ipAddress, unsigned int port)
-		{
-			WSADATA wsData;
-			if (WSAStartup(MAKEWORD(2, 2), &wsData))
-			{
-				Error();
-				return;
-			}
-			addrinfo* address;
-			addrinfo hint;
-			ZeroMemory(&hint, sizeof(hint));
-			hint.ai_family = AF_UNSPEC;
-			hint.ai_socktype = SOCK_STREAM;
-			if (getaddrinfo(ipAddress, std::to_string(port).c_str(), &hint, &address))
-			{
-				Error();
-				return;
-			}
-
-			serverSocket = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
-			if (serverSocket == INVALID_SOCKET)
-			{
-				Error();
-				return;
-			}
-
-			if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
-			{
-				Error();
-				return;
-			}
-
-			if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
-			{
-				Error();
-				return;
-			}
-
-			FD_ZERO(&clientSet);
-			FD_SET(serverSocket, &clientSet);
-			clientAddresses.push_back(*address->ai_addr);
-			freeaddrinfo(address);
-		}
-		Server(const Server& other) = delete;
-		Server& operator=(const Server& other) = delete;
-		Server(const Server&& other) = delete;
-		Server& operator=(const Server&& other) = delete;
-		~Server()
-		{
-			WSACleanup();
 		}
 	};
 }
