@@ -309,14 +309,17 @@ namespace NikNet
 		}
 	};
 
+	//UDP server with multiple clients link
+	//https://www.geeksforgeeks.org/tcp-and-udp-server-using-select/
+
 	class Server
 	{
 	private:
-		SOCKET serverSocket = 0;
+		SOCKET serverSocketTCP = 0;
+		SOCKET serverSocketUDP = 0;
 		fd_set clientSet;
 		TIMEVAL timeVal;
-		std::vector<sockaddr> clientAddresses;
-		bool UDP0_TCP1 = true;
+		std::vector<sockaddr> clientAddresses;;
 		std::string error = "No error";
 	private:
 		void Error()
@@ -509,7 +512,7 @@ namespace NikNet
 		{
 			//Multiple client architecture
 			fd_set copy = clientSet;
-			const unsigned int socketCount = select(0, &copy, nullptr, nullptr, &timeVal);
+			const unsigned int socketCount = select(::max<SOCKET>(serverSocketTCP, serverSocketUDP) + 1, &copy, nullptr, nullptr, &timeVal);
 
 			if (socketCount == SOCKET_ERROR)
 			{
@@ -521,29 +524,14 @@ namespace NikNet
 			for (unsigned int i = 0; i < socketCount; i++)
 			{
 				const SOCKET sock = copy.fd_array[i];
-				if (sock == serverSocket)
+				if (sock == serverSocketTCP)
 				{
 					sockaddr clientAddress;
 					ZeroMemory(&clientAddress, sizeof(clientAddress));
 					int clientAddressSize = sizeof(clientAddress);
 
 					SOCKET client = 0;
-
-					//Case for UDP
-					if (UDP0_TCP1)
-					{
-						client = accept(serverSocket, &clientAddress, &clientAddressSize);
-					}
-					else
-					{
-						if (nik_recvfrom(serverSocket, 
-							reinterpret_cast<char*>(&client), sizeof(client)) <= 0)
-						{
-							Error();
-							return;
-						}
-						client = ntohs(client); //Don't forget to transform to host byte order ;)
-					}
+					client = accept(serverSocketTCP, &clientAddress, &clientAddressSize);
 
 					if (client == INVALID_SOCKET)
 					{
@@ -563,6 +551,27 @@ namespace NikNet
 					//Don't forget about error checking
 					//For example: Send to all the clients the message that someone connected
 					//---
+				}
+				else if (sock == serverSocketUDP)
+				{
+					//IDK HOW TO ADD THE UDP CLIENT to the clientSet or how should I work around it
+					//Maybe I should use the hopson style thing here?
+					//My idea first:
+					/*//Case for UDP
+					if (UDP0_TCP1)
+					{
+						client = accept(serverSocket, &clientAddress, &clientAddressSize);
+					}
+					else
+					{
+						if (nik_recvfrom(serverSocket, 
+							reinterpret_cast<char*>(&client), sizeof(client)) <= 0)
+						{
+							Error();
+							return;
+						}
+						client = ntohs(client); //Don't forget to transform to host byte order ;)
+					}*/
 				}
 				else
 				{
@@ -592,7 +601,7 @@ namespace NikNet
 		}
 		int GetNClients() const
 		{
-			return clientAddresses.size() - 1; //- 1 because we also have the serverSocket in there, which isn't really a client
+			return clientAddresses.size() - 2; //- 1 because we also have both listeners in there, which aren't really clients
 		}
 		std::string GetClientAddress(int whichOne)
 		{
@@ -601,9 +610,7 @@ namespace NikNet
 			return ip;
 		}
 
-		Server(const char* ipAddress, unsigned int port, bool UDP0_TCP1)
-			:
-			UDP0_TCP1(UDP0_TCP1)
+		Server(const char* ipAddress, unsigned int port)
 		{
 			//Initialize the timeVal
 			ZeroMemory(&timeVal, sizeof(timeVal));
@@ -619,34 +626,47 @@ namespace NikNet
 			addrinfo hint;
 			ZeroMemory(&hint, sizeof(hint));
 			hint.ai_family = AF_UNSPEC;
-			hint.ai_socktype = UDP0_TCP1 == true ? SOCK_STREAM : SOCK_DGRAM;
+			hint.ai_socktype = SOCK_STREAM;
 			if (getaddrinfo(ipAddress, std::to_string(port).c_str(), &hint, &address))
 			{
 				Error();
 				return;
 			}
 
-			serverSocket = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
-			if (serverSocket == INVALID_SOCKET)
+			serverSocketTCP = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
+			serverSocketUDP = socket(address->ai_family, SOCK_DGRAM, address->ai_protocol);
+			if (serverSocketTCP == INVALID_SOCKET)
+			{
+				Error();
+				return;
+			}
+			if (serverSocketUDP == INVALID_SOCKET)
 			{
 				Error();
 				return;
 			}
 
-			if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
+			if (bind(serverSocketTCP, address->ai_addr, address->ai_addrlen))
+			{
+				Error();
+				return;
+			}
+			if (bind(serverSocketUDP, address->ai_addr, address->ai_addrlen))
 			{
 				Error();
 				return;
 			}
 
-			if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
+			if (listen(serverSocketTCP, SOMAXCONN) == SOCKET_ERROR)
 			{
 				Error();
 				return;
 			}
 
 			FD_ZERO(&clientSet);
-			FD_SET(serverSocket, &clientSet);
+			FD_SET(serverSocketTCP, &clientSet);
+			FD_SET(serverSocketUDP, &clientSet);
+			clientAddresses.push_back(*address->ai_addr);
 			clientAddresses.push_back(*address->ai_addr);
 			freeaddrinfo(address);
 		}
