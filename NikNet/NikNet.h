@@ -124,19 +124,26 @@ namespace NikNet
 
 			return total;
 		}
-		void TrafficOfData(SOCKET socket)
+	public:
+		std::string GetErr() const
 		{
+			return error;
+		}
+		void Running()
+		{
+			//Traffic of data
+
 			//README:
 			//You must first send and then recv on the client sides, if you recv first the server will still wait for you send a message
 			//but you can't because you got blocked from the recv (that's how your arhitecture will be *shrugs*)
 			//If you want to send a struct you have to use the nik_sendStruct and nik_recvStruct but you have to do them yourself
-			//Go to their declaration and send each member individually with nik_send and then use these two functions whenever you want
+			//Go to their declaration and send each member individually with nik_send
 			//Basically use any private function you want to do networking
 			//Don't forget to do error checking
 
 			//Here is an example code:
 			char msg[] = "Hello, I am the client";
-			const int bytesSend = nik_send(socket, msg, sizeof(msg));
+			const int bytesSend = nik_send(serverSocket, msg, sizeof(msg));
 			if (bytesSend <= 0)
 			{
 				error = "Couldn't send msg";
@@ -145,22 +152,13 @@ namespace NikNet
 
 			const int maxBufferSize = 100;
 			char buffer[maxBufferSize] = {};
-			const int bytesReceived = nik_recv(socket, buffer, maxBufferSize);
+			const int bytesReceived = nik_recv(serverSocket, buffer, maxBufferSize);
 			if (bytesReceived <= 0)
 			{
 				error = "Couldn't receive";
 				return;
 			}
 			std::cout.write(buffer, 6);
-		}
-	public:
-		std::string GetErr() const
-		{
-			return error;
-		}
-		void Running()
-		{
-			TrafficOfData(serverSocket);
 		}
 
 		Client(const char* ipAddress, unsigned int port)
@@ -214,8 +212,7 @@ namespace NikNet
 	class Server
 	{
 	private:
-		SOCKET serverSocketTCP = 0;
-		SOCKET serverSocketUDP = 0;
+		SOCKET serverSocket = 0;
 		fd_set clientSet;
 		std::vector<sockaddr> clientAddresses;;
 		std::string error = "No error";
@@ -345,31 +342,6 @@ namespace NikNet
 
 			return total;
 		}
-		void TrafficOfData(SOCKET socket)
-		{
-			//README:
-			//If you want to send a struct you have to use the nik_sendStruct and nik_recvStruct but you have to do them yourself
-			//Go to their declaration and send each member individually with nik_send and then use these two functions whenever you want
-			//Basically use any private function you want to do networking
-			//Don't forget to do error checking
-
-			//Here is an example:
-			char msg[] = "Hello, I am the server!";
-			if (nik_send(socket, msg, sizeof(msg) + 1) <= 0) // + 1 because we need to send the null terminal as well
-			{
-				DropClient(socket);
-				return;
-			}
-
-			const int maxBufferSize = 100;
-			char buffer[maxBufferSize] = {};
-			if (nik_recv(socket, buffer, maxBufferSize) <= 0)
-			{
-				DropClient(socket);
-				return;
-			}
-			std::cout.write(buffer, 26);
-		}
 	public:
 		std::string GetErr() const
 		{
@@ -379,7 +351,7 @@ namespace NikNet
 		{
 			//Multiple client architecture
 			fd_set copy = clientSet;
-			TIMEVAL timeVal = { 0,0 };
+			const TIMEVAL timeVal = { 0,0 };
 			const unsigned int socketCount = select(0, &copy, nullptr, nullptr, &timeVal);
 
 			if (socketCount == SOCKET_ERROR)
@@ -392,14 +364,14 @@ namespace NikNet
 			for (unsigned int i = 0; i < socketCount; i++)
 			{
 				const SOCKET sock = copy.fd_array[i];
-				if (sock == serverSocketTCP)
+				if (sock == serverSocket)
 				{
 					sockaddr clientAddress;
 					ZeroMemory(&clientAddress, sizeof(clientAddress));
 					int clientAddressSize = sizeof(clientAddress);
 
 					SOCKET client = 0;
-					client = accept(serverSocketTCP, &clientAddress, &clientAddressSize);
+					client = accept(serverSocket, &clientAddress, &clientAddressSize);
 
 					if (client == INVALID_SOCKET)
 					{
@@ -422,13 +394,36 @@ namespace NikNet
 				}
 				else
 				{
-					TrafficOfData(sock);
+					//Traffic of data
+
+					//README:
+					//If you want to send a struct you have to use the nik_sendStruct and nik_recvStruct but you have to do them yourself
+					//Go to their declaration and send and receive each member individually with nik_send
+					//Use any private function you want to do networking
+					//Don't forget to do error checking
+
+					//Here is an example code:
+					char msg[] = "Hello, I am the server!";
+					if (nik_send(sock, msg, sizeof(msg) + 1) <= 0) // + 1 because we need to send the null terminal as well
+					{
+						DropClient(sock);
+						return;
+					}
+
+					const int maxBufferSize = 100;
+					char buffer[maxBufferSize] = {};
+					if (nik_recv(sock, buffer, maxBufferSize) <= 0)
+					{
+						DropClient(sock);
+						return;
+					}
+					std::cout.write(buffer, 26);
 				}
 			}
 		}
 		int GetNClients() const
 		{
-			return clientAddresses.size() - 2; //- 1 because we also have both listeners in there, which aren't really clients
+			return clientAddresses.size() - 1; //- 1 because we also have both listeners in there, which aren't really clients
 		}
 		std::string GetClientAddress(int whichOne)
 		{
@@ -456,40 +451,27 @@ namespace NikNet
 				return;
 			}
 
-			serverSocketTCP = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
-			serverSocketUDP = socket(address->ai_family, SOCK_DGRAM, address->ai_protocol);
-			if (serverSocketTCP == INVALID_SOCKET)
-			{
-				Error();
-				return;
-			}
-			if (serverSocketUDP == INVALID_SOCKET)
+			serverSocket = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
+			if (serverSocket == INVALID_SOCKET)
 			{
 				Error();
 				return;
 			}
 
-			if (bind(serverSocketTCP, address->ai_addr, address->ai_addrlen))
-			{
-				Error();
-				return;
-			}
-			if (bind(serverSocketUDP, address->ai_addr, address->ai_addrlen))
+			if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
 			{
 				Error();
 				return;
 			}
 
-			if (listen(serverSocketTCP, SOMAXCONN) == SOCKET_ERROR)
+			if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
 			{
 				Error();
 				return;
 			}
 
 			FD_ZERO(&clientSet);
-			FD_SET(serverSocketTCP, &clientSet);
-			FD_SET(serverSocketUDP, &clientSet);
-			clientAddresses.push_back(*address->ai_addr);
+			FD_SET(serverSocket, &clientSet);
 			clientAddresses.push_back(*address->ai_addr);
 			freeaddrinfo(address);
 		}
