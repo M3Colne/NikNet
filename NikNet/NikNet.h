@@ -645,15 +645,6 @@ namespace NikNet
 				return;
 			}
 
-
-			//Make it non-blocking
-			u_long NonBlock = 1;
-			if (ioctlsocket(serverSocket, FIONBIO, &NonBlock) == SOCKET_ERROR)
-			{
-				Error();
-				return;
-			}
-
 			FD_ZERO(&clientSet);
 			FD_SET(serverSocket, &clientSet);
 			clientAddresses.push_back(*address->ai_addr);
