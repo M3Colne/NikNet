@@ -24,6 +24,223 @@ namespace NikNet
 			error = message;
 		}
 
+		template<typename T>int nik_sendStruct(T* buf, int len)
+		{
+			//Send each member variable individually
+			//Don't forget to use htons, ntohs, htonl, ntohl and if you want to send floats you can use the my functions
+
+			int bytesSend = 0;
+			//Uncomment this
+			//bytesSend = nik_send(serverSocket, buf.member_variable1,
+			//sizeof(buf.member_variable1)); 
+			//if(bytesSend <= 0){return bytesSend;}
+			//bytesSend = nik_send(serverSocket, buf.member_variable2, 
+			//sizeof(buf.member_variable2));
+			//if(bytesSend <= 0){return bytesSend;}
+			//bytesSend = nik_send(serverSocket, buf.member_variable2,
+			//sizeof(buf.member_variable3));
+			//if(bytesSend <= 0){return bytesSend;}
+			//.
+			//.
+			//.
+			return 0;
+		}
+		template<typename T>int nik_recvStruct(T* buf, int len)
+		{
+			//Receive each member variable individually
+			//Don't forget to use ntohs, ntohl and if you want to receive floats you can use the my functions
+
+			int bytesReceive = 0;
+			//Uncommen this
+			//bytesRecv = nik_recv(serverSocket, buf.member_variable1,
+			//sizeof(buf.member_variable1)); 
+			//if(bytesRecv <= 0){return bytesRecv;}
+			//bytesRecv = nik_recv(serverSocket, buf.member_variable2, 
+			//sizeof(buf.member_variable2));
+			//if(bytesRecv <= 0){return bytesRecv;}
+			//bytesRecv = nik_recv(serverSocket, buf.member_variable2,
+			//sizeof(buf.member_variable3));
+			//if(bytesRecv <= 0){return bytesRecv;}
+			//.
+			//.
+			//.
+			return 0;
+		}
+
+		int nik_send(char* buf, int len)
+		{
+			//The first 4 bytes is how much to tell how much we are sending
+			{
+				len = htons(len);
+				const int bytesSent = send(serverSocket, reinterpret_cast<char*>(&len), sizeof(int), 0);
+				if (bytesSent <= 0)
+				{
+					return bytesSent;
+				}
+				len = ntohs(len);
+			}
+
+			int total = 0;        // how many bytes we've sent
+			int bytesleft = len; // how many we have left to send
+			int n;
+
+			while (total < len) {
+				n = send(serverSocket, buf + total, bytesleft, 0);
+				if (n <= 0)
+				{
+					return n;
+				}
+				total += n;
+				bytesleft -= n;
+			}
+
+			return total;
+		}
+		int nik_recv(char* buf, int len)
+		{
+			//Receive the number of how many bytes we need to receive
+			int bytesToReceive = 0;
+			{
+				const int bytesReceived = recv(serverSocket, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0);
+				if (bytesReceived <= 0)
+				{
+					return bytesReceived;
+				}
+				bytesToReceive = ntohs(bytesToReceive);
+			}
+
+			int total = 0;				    // how many bytes we've received
+			int bytesleft = bytesToReceive; // how many we have left to receive
+			int n;
+
+			while (total < bytesToReceive) {
+				n = recv(serverSocket, buf + total, bytesleft, 0);
+				if (n <= 0)
+				{
+					return n;
+				}
+				total += n;
+				bytesleft -= n;
+			}
+
+			return total;
+		}
+	public:
+		std::string GetErr() const
+		{
+			return error;
+		}
+		void Running()
+		{
+			//Traffic of data
+
+			//README:
+			//You must first send and then recv on the client sides, if you recv first the server will still wait for you send a message
+			//but you can't because you got blocked from the recv (that's how your arhitecture will be *shrugs*)
+			//If you want to send a struct you have to use the nik_sendStruct and nik_recvStruct but you have to do them yourself
+			//Go to their declaration and send each member individually with nik_send and then use these two functions whenever you want
+			//Basically use any private function you want to do networking
+			//Don't forget to do error checking
+
+			//Here is an example code:
+			char msg[] = "Hello, I am the client";
+			const int bytesSend = nik_send(msg, sizeof(msg));
+			if (bytesSend <= 0)
+			{
+				error = "Couldn't send msg";
+				return;
+			}
+
+			const int maxBufferSize = 100;
+			char buffer[maxBufferSize] = {};
+			const int bytesReceived = nik_recv(buffer, maxBufferSize);
+			if (bytesReceived <= 0)
+			{
+				error = "Couldn't receive";
+				return;
+			}
+			std::cout.write(buffer, 6);
+		}
+
+		Client(const char* ipAddress, unsigned int port)
+		{
+			WSADATA wsData;
+			if (WSAStartup(MAKEWORD(2, 2), &wsData))
+			{
+				error = std::to_string(WSAGetLastError());
+			}
+			addrinfo* peerAddress = nullptr;
+			addrinfo hint;
+			ZeroMemory(&hint, sizeof(hint));
+			hint.ai_family = AF_UNSPEC;
+			hint.ai_socktype = SOCK_STREAM;
+			if (getaddrinfo(ipAddress, std::to_string(port).c_str(), &hint, &peerAddress))
+			{
+				Error();
+				return;
+			}
+
+			serverSocket = socket(peerAddress->ai_family, peerAddress->ai_socktype, peerAddress->ai_protocol);
+			if (serverSocket == INVALID_SOCKET)
+			{
+				Error();
+				return;
+			}
+
+			if (connect(serverSocket, peerAddress->ai_addr, peerAddress->ai_addrlen))
+			{
+				Error();
+				return;
+			}
+
+			freeaddrinfo(peerAddress);
+
+			OutputDebugStringA("Succesfully connected to the server!");
+		}
+		Client(const Client& other) = delete;
+		Client operator=(const Client& other) = delete;
+		Client(const Client&& other) = delete;
+		Client& operator=(const Client&& other) = delete;
+		~Client()
+		{
+			WSACleanup();
+		}
+	};
+
+	class Server
+	{
+	private:
+		SOCKET serverSocket = 0;
+		fd_set clientSet;
+		std::vector<sockaddr> clientAddresses;;
+		std::string error = "No error";
+	private:
+		void Error()
+		{
+			error = std::to_string(WSAGetLastError());
+		}
+		void Error(const char* message)
+		{
+			error = message;
+		}
+
+		int GetSockId(SOCKET s)
+		{
+			for (unsigned int i = 0; i < clientAddresses.size(); i++)
+			{
+				if (clientSet.fd_array[i] == s)
+				{
+					return i;
+				}
+			}
+			return -1;
+		}
+		void DropClient(SOCKET s)
+		{
+			clientAddresses.erase(clientAddresses.cbegin() + GetSockId(s));
+			FD_CLR(s, &clientSet);
+		}
+
 		template<typename T>int nik_sendStruct(SOCKET s, T* buf, int len)
 		{
 			//Send each member variable individually
@@ -131,292 +348,6 @@ namespace NikNet
 		}
 		void Running()
 		{
-			//Traffic of data
-
-			//README:
-			//You must first send and then recv on the client sides, if you recv first the server will still wait for you send a message
-			//but you can't because you got blocked from the recv (that's how your arhitecture will be *shrugs*)
-			//If you want to send a struct you have to use the nik_sendStruct and nik_recvStruct but you have to do them yourself
-			//Go to their declaration and send each member individually with nik_send
-			//Basically use any private function you want to do networking
-			//Don't forget to do error checking
-
-			//Here is an example code:
-			char msg[] = "Hello, I am the client";
-			const int bytesSend = nik_send(serverSocket, msg, sizeof(msg));
-			if (bytesSend <= 0)
-			{
-				error = "Couldn't send msg";
-				return;
-			}
-
-			const int maxBufferSize = 100;
-			char buffer[maxBufferSize] = {};
-			const int bytesReceived = nik_recv(serverSocket, buffer, maxBufferSize);
-			if (bytesReceived <= 0)
-			{
-				error = "Couldn't receive";
-				return;
-			}
-			std::cout.write(buffer, 6);
-		}
-
-		Client(const char* ipAddress, unsigned int port)
-		{
-			WSADATA wsData;
-			if (WSAStartup(MAKEWORD(2, 2), &wsData))
-			{
-				error = std::to_string(WSAGetLastError());
-			}
-			addrinfo* peerAddress = nullptr;
-			addrinfo hint;
-			ZeroMemory(&hint, sizeof(hint));
-			hint.ai_family = AF_UNSPEC;
-			hint.ai_socktype = SOCK_STREAM;
-			if (getaddrinfo(ipAddress, std::to_string(port).c_str(), &hint, &peerAddress))
-			{
-				error = std::to_string(WSAGetLastError());
-				return;
-			}
-
-			serverSocket = socket(peerAddress->ai_family, peerAddress->ai_socktype, peerAddress->ai_protocol);
-			if (serverSocket == INVALID_SOCKET)
-			{
-				error = std::to_string(WSAGetLastError());
-				return;
-			}
-
-			if (connect(serverSocket, peerAddress->ai_addr, peerAddress->ai_addrlen))
-			{
-				error = std::to_string(WSAGetLastError());
-				return;
-			}
-
-			freeaddrinfo(peerAddress);
-
-			OutputDebugStringA("Succesfully connected to the server!");
-		}
-		Client(const Client& other) = delete;
-		Client operator=(const Client& other) = delete;
-		Client(const Client&& other) = delete;
-		Client& operator=(const Client&& other) = delete;
-		~Client()
-		{
-			if (WSACleanup())
-			{
-				error = std::to_string(WSAGetLastError());
-			}
-		}
-	};
-
-	class Server
-	{
-	protected:
-		SOCKET serverSocket = 0;
-		std::vector<sockaddr> clientAddresses;;
-		std::string error = "No error";
-	protected:
-		void Error()
-		{
-			error = std::to_string(WSAGetLastError());
-		}
-		void Error(const char* message)
-		{
-			error = message;
-		}
-
-		template<typename T>int nik_sendStruct(SOCKET s, T* buf, int len)
-		{
-			//Send each member variable individually
-			//Don't forget to use htons, ntohs, htonl, ntohl and if you want to send floats you can use the my functions
-
-			int bytesSend = 0;
-			//Uncomment this
-			//bytesSend = nik_send(s, buf.member_variable1,
-			//sizeof(buf.member_variable1)); 
-			//if(bytesSend <= 0){return bytesSend;}
-			//bytesSend = nik_send(s, buf.member_variable2, 
-			//sizeof(buf.member_variable2));
-			//if(bytesSend <= 0){return bytesSend;}
-			//bytesSend = nik_send(s, buf.member_variable2,
-			//sizeof(buf.member_variable3));
-			//if(bytesSend <= 0){return bytesSend;}
-			//.
-			//.
-			//.
-			return 0;
-		}
-		template<typename T>int nik_recvStruct(SOCKET s, T* buf, int len)
-		{
-			//Receive each member variable individually
-			//Don't forget to use ntohs, ntohl and if you want to receive floats you can use the my functions
-
-			int bytesReceive = 0;
-			//Uncommen this
-			//bytesRecv = nik_recv(s, buf.member_variable1,
-			//sizeof(buf.member_variable1)); 
-			//if(bytesRecv <= 0){return bytesRecv;}
-			//bytesRecv = nik_recv(s, buf.member_variable2, 
-			//sizeof(buf.member_variable2));
-			//if(bytesRecv <= 0){return bytesRecv;}
-			//bytesRecv = nik_recv(s, buf.member_variable2,
-			//sizeof(buf.member_variable3));
-			//if(bytesRecv <= 0){return bytesRecv;}
-			//.
-			//.
-			//.
-			return 0;
-		}
-		int nik_send(SOCKET s, char* buf, int len)
-		{
-			//The first 4 bytes is how much to tell how much we are sending
-			{
-				len = htons(len);
-				const int bytesSent = send(s, reinterpret_cast<char*>(&len), sizeof(int), 0);
-				if (bytesSent <= 0)
-				{
-					return bytesSent;
-				}
-				len = ntohs(len);
-			}
-
-			int total = 0;        // how many bytes we've sent
-			int bytesleft = len; // how many we have left to send
-			int n;
-
-			while (total < len) {
-				n = send(s, buf + total, bytesleft, 0);
-				if (n <= 0)
-				{
-					return n;
-				}
-				total += n;
-				bytesleft -= n;
-			}
-
-			return total;
-		}
-		int nik_recv(SOCKET s, char* buf, int len)
-		{
-			//Receive the number of how many bytes we need to receive
-			int bytesToReceive = 0;
-			{
-				const int bytesReceived = recv(s, reinterpret_cast<char*>(&bytesToReceive), sizeof(int), 0);
-				if (bytesReceived <= 0)
-				{
-					return bytesReceived;
-				}
-				bytesToReceive = ntohs(bytesToReceive);
-			}
-
-			int total = 0;				    // how many bytes we've received
-			int bytesleft = bytesToReceive; // how many we have left to receive
-			int n;
-
-			while (total < bytesToReceive) {
-				n = recv(s, buf + total, bytesleft, 0);
-				if (n <= 0)
-				{
-					return n;
-				}
-				total += n;
-				bytesleft -= n;
-			}
-
-			return total;
-		}
-	public:
-		std::string GetErr() const
-		{
-			return error;
-		}
-		virtual void Running() = 0;
-		int GetNClients() const
-		{
-			return clientAddresses.size() - 1; //- 1 because we also have both listeners in there, which aren't really clients
-		}
-		std::string GetClientAddress(int whichOne)
-		{
-			char ip[INET_ADDRSTRLEN] = {};
-			inet_ntop(AF_INET, &clientAddresses.at(whichOne + 1), ip, INET_ADDRSTRLEN); // +1 because we want to skip the server
-			return ip;
-		}
-
-		Server(const char* ipAddress, unsigned int port)
-		{
-			WSADATA wsData;
-			if (WSAStartup(MAKEWORD(2, 2), &wsData))
-			{
-				Error();
-				return;
-			}
-			addrinfo* address;
-			addrinfo hint;
-			ZeroMemory(&hint, sizeof(hint));
-			hint.ai_family = AF_UNSPEC;
-			hint.ai_socktype = SOCK_STREAM;
-			if (getaddrinfo(ipAddress, std::to_string(port).c_str(), &hint, &address))
-			{
-				Error();
-				return;
-			}
-
-			serverSocket = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
-			if (serverSocket == INVALID_SOCKET)
-			{
-				Error();
-				return;
-			}
-
-			if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
-			{
-				Error();
-				return;
-			}
-
-			freeaddrinfo(address);
-
-			if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
-			{
-				Error();
-				return;
-			}
-
-			clientAddresses.push_back(*address->ai_addr);
-		}
-		Server(const Server& other) = delete;
-		Server& operator=(const Server& other) = delete;
-		Server(const Server&& other) = delete;
-		Server& operator=(const Server&& other) = delete;
-		virtual ~Server() = 0;
-	};
-
-	class TCP_Server : public Server
-	{
-	private:
-		fd_set clientSet;
-	public:
-	private:
-		int GetSockId(SOCKET s)
-		{
-			for (unsigned int i = 0; i < clientAddresses.size(); i++)
-			{
-				if (clientSet.fd_array[i] == s)
-				{
-					return i;
-				}
-			}
-			return -1;
-		}
-		void DropClient(SOCKET s)
-		{
-			clientAddresses.erase(clientAddresses.cbegin() + GetSockId(s));
-			FD_CLR(s, &clientSet);
-		}
-	public:
-
-		void Running() override
-		{
 			//Multiple client architecture
 			fd_set copy = clientSet;
 			const TIMEVAL timeVal = { 0,0 };
@@ -489,21 +420,69 @@ namespace NikNet
 				}
 			}
 		}
-
-		TCP_Server(const char* ipAddress, unsigned int port)
-			:
-			Server(ipAddress, port)
+		int GetNClients() const
 		{
+			return clientAddresses.size() - 1; //- 1 because we also have both listeners in there, which aren't really clients
+		}
+		std::string GetClientAddress(int whichOne)
+		{
+			char ip[INET_ADDRSTRLEN] = {};
+			inet_ntop(AF_INET, &clientAddresses.at(whichOne + 1), ip, INET_ADDRSTRLEN); // +1 because we want to skip the server
+			return ip;
+		}
+
+		Server(const char* ipAddress, unsigned int port)
+		{
+			WSADATA wsData;
+			if (WSAStartup(MAKEWORD(2, 2), &wsData))
+			{
+				Error();
+				return;
+			}
+			addrinfo* address;
+			addrinfo hint;
+			ZeroMemory(&hint, sizeof(hint));
+			hint.ai_family = AF_UNSPEC;
+			hint.ai_socktype = SOCK_STREAM;
+			if (getaddrinfo(ipAddress, std::to_string(port).c_str(), &hint, &address))
+			{
+				Error();
+				return;
+			}
+
+			serverSocket = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
+			if (serverSocket == INVALID_SOCKET)
+			{
+				Error();
+				return;
+			}
+
+			if (bind(serverSocket, address->ai_addr, address->ai_addrlen))
+			{
+				Error();
+				return;
+			}
+
+			freeaddrinfo(address);
+
+			if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
+			{
+				Error();
+				return;
+			}
+
+			clientAddresses.push_back(*address->ai_addr);
+
 			FD_ZERO(&clientSet);
 			FD_SET(serverSocket, &clientSet);
 		}
-		TCP_Server(const TCP_Server& other) = delete;
-		TCP_Server& operator=(const TCP_Server& other) = delete;
-		TCP_Server(const TCP_Server&& other) = delete;
-		TCP_Server& operator=(const TCP_Server&& other) = delete;
-		~TCP_Server() override
+		Server(const Server& other) = delete;
+		Server& operator=(const Server& other) = delete;
+		Server(const Server&& other) = delete;
+		Server& operator=(const Server&& other) = delete;
+		~Server()
 		{
 			WSACleanup();
-		}
+		};
 	};
 }
